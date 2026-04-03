@@ -97,10 +97,13 @@ export function deleteProject(db: Database.Database, name: string): boolean {
   if (!project) {
     return false;
   }
-  // Delete messages, sessions, and project (cascading due to foreign keys)
-  db.prepare("DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)").run(project.id);
-  db.prepare("DELETE FROM sessions WHERE project_id = ?").run(project.id);
-  db.prepare("DELETE FROM projects WHERE id = ?").run(project.id);
+  // Use transaction to ensure atomic deletion
+  const deleteTransaction = db.transaction(() => {
+    db.prepare("DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)").run(project.id);
+    db.prepare("DELETE FROM sessions WHERE project_id = ?").run(project.id);
+    db.prepare("DELETE FROM projects WHERE id = ?").run(project.id);
+  });
+  deleteTransaction();
   return true;
 }
 

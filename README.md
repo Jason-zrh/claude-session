@@ -3,7 +3,6 @@
 <div align="center">
 
 ![Claude Session](https://img.shields.io/badge/Claude-Code-7C3AED?style=for-the-badge&logo=anthropic)
-![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs)
 ![SQLite](https://img.shields.io/badge/SQLite-Persisted-brightgreen?style=for-the-badge&logo=sqlite)
 ![MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
