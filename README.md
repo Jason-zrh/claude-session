@@ -39,13 +39,16 @@
 ### Installation | 安装
 
 ```bash
-npm install -g claude-session
+git clone 
+cd claude-session
+npm install
+npm run build
 ```
 
 ### Setup | 初始化
 
 ```bash
-claude-session init
+node dist/index.js init
 ```
 
 > Restart Claude Code to load the MCP server.
@@ -91,7 +94,9 @@ claude-session init
 |----------|------|
 | Default | `~/.claude-session.db` |
 
-Put it in iCloud/Dropbox to sync across machines!
+#### Syncing across machines | 跨设备同步
+
+The database file `~/.claude-session.db` can be synced via iCloud, Dropbox, or any cloud storage to share conversation history across multiple machines.
 
 ---
 
