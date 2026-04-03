@@ -1,4 +1,4 @@
-import { initializeDatabase, getOrCreateProject, listProjects, createSession, addMessage, getProjectMessages, endSession, getActiveSession, getDatabasePath, getProjectByName, searchProjectMessages } from "../src/database";
+import { initializeDatabase, getOrCreateProject, listProjects, createSession, addMessage, getProjectMessages, endSession, getActiveSession, getDatabasePath, getProjectByName, searchProjectMessages, deleteProject } from "../src/database";
 import Database from "better-sqlite3";
 import path from "path";
 import os from "os";
@@ -21,11 +21,16 @@ describe("Database operations", () => {
     db = new Database(TEST_DB);
     db.exec(`
       CREATE TABLE IF NOT EXISTS projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS metadata (
+        key TEXT PRIMARY KEY,
+        value INTEGER NOT NULL
+      );
+      INSERT OR IGNORE INTO metadata (key, value) VALUES ('next_project_id', 1);
       CREATE TABLE IF NOT EXISTS sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id INTEGER NOT NULL,

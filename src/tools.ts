@@ -20,10 +20,19 @@ interface ToolCallParams {
   arguments?: Record<string, unknown>;
 }
 
+interface PendingMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+  tools: string | null;
+  created_at: number;
+}
+
 interface ServerState {
   currentProject: Project | null;
   currentSession: Session | null;
   isRecording: boolean;
+  saveMode: "auto" | "manual";
+  pendingMessages: PendingMessage[];
 }
 
 export function createTools(db: Database.Database) {
@@ -31,6 +40,8 @@ export function createTools(db: Database.Database) {
     currentProject: null,
     currentSession: null,
     isRecording: false,
+    saveMode: "auto",
+    pendingMessages: [],
   };
 
   const listToolsHandler = async () => {
@@ -43,6 +54,11 @@ export function createTools(db: Database.Database) {
             type: "object",
             properties: {
               name: { type: "string", description: "Project name" },
+              save_mode: {
+                type: "string",
+                enum: ["auto", "manual"],
+                description: "Save mode: 'auto' saves after each message, 'manual' requires explicit save_message calls"
+              },
             },
             required: ["name"],
           },
@@ -86,7 +102,7 @@ export function createTools(db: Database.Database) {
         },
         {
           name: "record_message",
-          description: "Record a message to the current project",
+          description: "Record a message to the current project. In manual save mode, messages are buffered until save_message is called.",
           inputSchema: {
             type: "object",
             properties: {
@@ -96,6 +112,11 @@ export function createTools(db: Database.Database) {
             },
             required: ["role", "content"],
           },
+        },
+        {
+          name: "save_message",
+          description: "Flush all pending messages to the database (used in manual save mode)",
+          inputSchema: { type: "object", properties: {} },
         },
       ],
     };
@@ -113,6 +134,8 @@ export function createTools(db: Database.Database) {
             content: [{ type: "text", text: JSON.stringify({ error: "Project name is required" }) }],
           };
         }
+        const saveMode = (input.save_mode as "auto" | "manual") || "auto";
+
         try {
           const project = getOrCreateProject(db, name);
           const sessionUuid = crypto.randomUUID();
@@ -121,6 +144,8 @@ export function createTools(db: Database.Database) {
           serverState.currentProject = project;
           serverState.currentSession = session;
           serverState.isRecording = true;
+          serverState.saveMode = saveMode;
+          serverState.pendingMessages = [];
 
           const messages = getProjectMessages(db, project.id);
 
@@ -134,6 +159,7 @@ export function createTools(db: Database.Database) {
                   session_id: session.id,
                   is_new_project: messages.length === 0,
                   previous_messages_count: messages.length,
+                  save_mode: saveMode,
                   messages: messages.map((m) => ({
                     role: m.role,
                     content: m.content,
@@ -192,6 +218,8 @@ export function createTools(db: Database.Database) {
                 },
                 session_id: serverState.currentSession?.id,
                 is_recording: serverState.isRecording,
+                save_mode: serverState.saveMode,
+                pending_messages: serverState.pendingMessages.length,
               }),
             },
           ],
@@ -238,6 +266,7 @@ export function createTools(db: Database.Database) {
           serverState.currentProject = null;
           serverState.currentSession = null;
           serverState.isRecording = false;
+          serverState.pendingMessages = [];
 
           return {
             content: [
@@ -301,6 +330,14 @@ export function createTools(db: Database.Database) {
         const role = roleInput as "user" | "assistant" | "system";
         const content = input.content as string;
         const tools = input.tools as string | undefined;
+        const now = Date.now();
+
+        if (serverState.saveMode === "manual") {
+          serverState.pendingMessages.push({ role, content, tools: tools ?? null, created_at: now });
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: true, pending: true, count: serverState.pendingMessages.length }) }],
+          };
+        }
 
         try {
           addMessage(db, serverState.currentSession.id, role, content, tools, true);
@@ -313,6 +350,39 @@ export function createTools(db: Database.Database) {
         return {
           content: [{ type: "text", text: JSON.stringify({ success: true }) }],
         };
+      }
+
+      case "save_message": {
+        if (!serverState.isRecording || !serverState.currentSession) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: false, reason: "Not recording" }) }],
+          };
+        }
+        if (serverState.saveMode !== "manual") {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: false, reason: "Not in manual save mode" }) }],
+          };
+        }
+        if (serverState.pendingMessages.length === 0) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: true, saved: 0 }) }],
+          };
+        }
+
+        try {
+          const toSave = [...serverState.pendingMessages];
+          for (const msg of toSave) {
+            addMessage(db, serverState.currentSession.id, msg.role, msg.content, msg.tools ?? undefined, true);
+          }
+          serverState.pendingMessages = [];
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: true, saved: toSave.length }) }],
+          };
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
+          };
+        }
       }
 
       default:

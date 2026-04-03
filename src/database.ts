@@ -37,11 +37,18 @@ export function initializeDatabase(): Database.Database {
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id INTEGER PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS metadata (
+      key TEXT PRIMARY KEY,
+      value INTEGER NOT NULL
+    );
+
+    INSERT OR IGNORE INTO metadata (key, value) VALUES ('next_project_id', 1);
 
     CREATE TABLE IF NOT EXISTS sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,9 +86,15 @@ export function getOrCreateProject(db: Database.Database, name: string): Project
     db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(Date.now(), existing.id);
     return existing;
   }
+
   const now = Date.now();
-  const result = db.prepare("INSERT INTO projects (name, created_at, updated_at) VALUES (?, ?, ?)").run(name, now, now);
-  return { id: result.lastInsertRowid as number, name, created_at: now, updated_at: now };
+  const nextIdRow = db.prepare("SELECT value FROM metadata WHERE key = 'next_project_id'").get() as { value: number };
+  const newId = nextIdRow.value;
+
+  db.prepare("INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)").run(newId, name, now, now);
+  db.prepare("UPDATE metadata SET value = ? WHERE key = 'next_project_id'").run(newId + 1);
+
+  return { id: newId, name, created_at: now, updated_at: now };
 }
 
 export function listProjects(db: Database.Database): Project[] {
@@ -97,13 +110,20 @@ export function deleteProject(db: Database.Database, name: string): boolean {
   if (!project) {
     return false;
   }
-  // Use transaction to ensure atomic deletion
+
   const deleteTransaction = db.transaction(() => {
     db.prepare("DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)").run(project.id);
     db.prepare("DELETE FROM sessions WHERE project_id = ?").run(project.id);
     db.prepare("DELETE FROM projects WHERE id = ?").run(project.id);
   });
   deleteTransaction();
+
+  // Reset counter if no projects remain
+  const remaining = db.prepare("SELECT COUNT(*) as count FROM projects").get() as { count: number };
+  if (remaining.count === 0) {
+    db.prepare("UPDATE metadata SET value = 1 WHERE key = 'next_project_id'").run();
+  }
+
   return true;
 }
 
@@ -145,15 +165,11 @@ export function getProjectMessages(db: Database.Database, projectId: number): Me
   `).all(projectId) as Message[];
 }
 
-function escapeLikePattern(str: string): string {
-  return str.replace(/[%_\\]/g, '\\$&');
-}
-
 export function searchProjectMessages(db: Database.Database, projectId: number, query: string): Message[] {
   return db.prepare(`
     SELECT m.* FROM messages m
     JOIN sessions s ON m.session_id = s.id
     WHERE s.project_id = ? AND m.content LIKE ?
     ORDER BY m.created_at ASC
-  `).all(projectId, `%${escapeLikePattern(query)}%`) as Message[];
+  `).all(projectId, `%${query.replace(/[%_\\]/g, '\\$&')}%`) as Message[];
 }
