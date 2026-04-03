@@ -7,7 +7,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { initializeDatabase } from "./database.js";
-import { listTools, callTool } from "./tools.js";
+import { createTools } from "./tools.js";
 
 const db = initializeDatabase();
 
@@ -23,12 +23,12 @@ const server = new Server(
   }
 );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: listTools(db),
-}));
+const [listToolsHandler, callToolHandler] = createTools(db);
+
+server.setRequestHandler(ListToolsRequestSchema, listToolsHandler.handle);
 
 server.setRequestHandler(CallToolRequestSchema, async (request) =>
-  callTool(db, request)
+  callToolHandler.handle(request)
 );
 
 const transport = new StdioServerTransport();
