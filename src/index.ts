@@ -8,8 +8,41 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { initializeDatabase } from "./database.js";
 import { createTools } from "./tools.js";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
+const args = process.argv.slice(2);
+
+if (args[0] === "init") {
+  const configDir = path.join(os.homedir(), ".claude");
+  const configPath = path.join(configDir, "claude_desktop_config.json");
+  const dbPath = path.join(os.homedir(), ".claude-session.db");
+
+  const config = {
+    mcpServers: {
+      "claude-session": {
+        command: "node",
+        args: [path.join(__dirname, "index.js")],
+        env: {
+          CLAUDE_SESSION_DB: dbPath,
+        },
+      },
+    },
+  };
+
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  console.log(`MCP config written to ${configPath}`);
+  console.log(`Database path: ${dbPath}`);
+  console.log("");
+  console.log("Restart Claude Code to use the MCP server.");
+  process.exit(0);
+}
+
+// Normal server mode
 const db = initializeDatabase();
+const { listToolsHandler, callToolHandler } = createTools(db);
 
 const server = new Server(
   {
@@ -23,10 +56,7 @@ const server = new Server(
   }
 );
 
-const { listToolsHandler, callToolHandler } = createTools(db);
-
 server.setRequestHandler(ListToolsRequestSchema, listToolsHandler);
-
 server.setRequestHandler(CallToolRequestSchema, callToolHandler);
 
 const transport = new StdioServerTransport();
