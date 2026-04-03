@@ -23,13 +23,11 @@ const server = new Server(
   }
 );
 
-const [listToolsHandler, callToolHandler] = createTools(db);
+const { listToolsHandler, callToolHandler } = createTools(db);
 
-server.setRequestHandler(ListToolsRequestSchema, listToolsHandler.handle);
+server.setRequestHandler(ListToolsRequestSchema, listToolsHandler);
 
-server.setRequestHandler(CallToolRequestSchema, async (request) =>
-  callToolHandler.handle(request)
-);
+server.setRequestHandler(CallToolRequestSchema, callToolHandler);
 
 const transport = new StdioServerTransport();
 server.connect(transport).catch((err) => {

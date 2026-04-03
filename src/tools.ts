@@ -14,6 +14,11 @@ import {
   type Session,
 } from "./database.js";
 
+interface ToolCallParams {
+  name: string;
+  arguments?: Record<string, unknown>;
+}
+
 interface ServerState {
   currentProject: Project | null;
   currentSession: Session | null;
@@ -27,75 +32,76 @@ export function createTools(db: Database.Database) {
     isRecording: false,
   };
 
-  const listToolsHandler = {
-    schema: ListToolsRequestSchema,
-    handle: async () => {
-      return {
-        tools: [
-          {
-            name: "use_project",
-            description: "Create or switch to a project. Loads all previous conversation history and begins recording.",
-            inputSchema: {
-              type: "object",
-              properties: {
-                name: { type: "string", description: "Project name" },
-              },
-              required: ["name"],
+  const listToolsHandler = async () => {
+    return {
+      tools: [
+        {
+          name: "use_project",
+          description: "Create or switch to a project. Loads all previous conversation history and begins recording.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Project name" },
             },
+            required: ["name"],
           },
-          {
-            name: "list_projects",
-            description: "List all projects with their last activity time",
-            inputSchema: { type: "object", properties: {} },
-          },
-          {
-            name: "current_project",
-            description: "Show the currently active project",
-            inputSchema: { type: "object", properties: {} },
-          },
-          {
-            name: "search_project",
-            description: "Search within the current project's messages",
-            inputSchema: {
-              type: "object",
-              properties: {
-                query: { type: "string", description: "Search query" },
-              },
-              required: ["query"],
+        },
+        {
+          name: "list_projects",
+          description: "List all projects with their last activity time",
+          inputSchema: { type: "object", properties: {} },
+        },
+        {
+          name: "current_project",
+          description: "Show the currently active project",
+          inputSchema: { type: "object", properties: {} },
+        },
+        {
+          name: "search_project",
+          description: "Search within the current project's messages",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Search query" },
             },
+            required: ["query"],
           },
-          {
-            name: "end_project",
-            description: "End the current project and stop recording",
-            inputSchema: { type: "object", properties: {} },
-          },
-          {
-            name: "record_message",
-            description: "Record a message to the current project",
-            inputSchema: {
-              type: "object",
-              properties: {
-                role: { type: "string", enum: ["user", "assistant", "system"] },
-                content: { type: "string" },
-                tools: { type: "string", description: "JSON string of tool calls if any" },
-              },
-              required: ["role", "content"],
+        },
+        {
+          name: "end_project",
+          description: "End the current project and stop recording",
+          inputSchema: { type: "object", properties: {} },
+        },
+        {
+          name: "record_message",
+          description: "Record a message to the current project",
+          inputSchema: {
+            type: "object",
+            properties: {
+              role: { type: "string", enum: ["user", "assistant", "system"] },
+              content: { type: "string" },
+              tools: { type: "string", description: "JSON string of tool calls if any" },
             },
+            required: ["role", "content"],
           },
-        ],
-      };
-    },
+        },
+      ],
+    };
   };
 
-  const callToolHandler = {
-    schema: CallToolRequestSchema,
-    handle: async (args: any) => {
-      const toolName = args.name;
-      const input = args.arguments || {};
+  const callToolHandler = async (request: { params: ToolCallParams }) => {
+    const toolName = request.params.name;
+    const input = (request.params.arguments || {}) as Record<string, unknown>;
 
-      switch (toolName) {
-        case "use_project": {
-          const name = input.name as string;
+    switch (toolName) {
+      case "use_project": {
+        const name = (input.name as string)?.trim();
+        if (!name) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: "Project name is required" }) }],
+          };
+        }
+        try {
           const project = getOrCreateProject(db, name);
           const sessionUuid = crypto.randomUUID();
           const session = createSession(db, project.id, sessionUuid);
@@ -125,9 +131,15 @@ export function createTools(db: Database.Database) {
               },
             ],
           };
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
+          };
         }
+      }
 
-        case "list_projects": {
+      case "list_projects": {
+        try {
           const projects = listProjects(db);
           return {
             content: [
@@ -143,39 +155,45 @@ export function createTools(db: Database.Database) {
               },
             ],
           };
-        }
-
-        case "current_project": {
-          if (!serverState.currentProject) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ active: false }) }],
-            };
-          }
+        } catch (err) {
           return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({
-                  active: true,
-                  project: {
-                    name: serverState.currentProject.name,
-                    id: serverState.currentProject.id,
-                  },
-                  session_id: serverState.currentSession?.id,
-                  is_recording: serverState.isRecording,
-                }),
-              },
-            ],
+            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
           };
         }
+      }
 
-        case "search_project": {
-          if (!serverState.currentProject) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ error: "No active project" }) }],
-            };
-          }
-          const query = input.query as string;
+      case "current_project": {
+        if (!serverState.currentProject) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ active: false }) }],
+          };
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                active: true,
+                project: {
+                  name: serverState.currentProject.name,
+                  id: serverState.currentProject.id,
+                },
+                session_id: serverState.currentSession?.id,
+                is_recording: serverState.isRecording,
+              }),
+            },
+          ],
+        };
+      }
+
+      case "search_project": {
+        if (!serverState.currentProject) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: "No active project" }) }],
+          };
+        }
+        const query = input.query as string;
+        try {
           const messages = searchProjectMessages(db, serverState.currentProject.id, query);
           return {
             content: [
@@ -193,9 +211,15 @@ export function createTools(db: Database.Database) {
               },
             ],
           };
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
+          };
         }
+      }
 
-        case "end_project": {
+      case "end_project": {
+        try {
           if (serverState.currentSession) {
             endSession(db, serverState.currentSession.id);
           }
@@ -211,33 +235,49 @@ export function createTools(db: Database.Database) {
               },
             ],
           };
-        }
-
-        case "record_message": {
-          if (!serverState.isRecording || !serverState.currentSession) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ success: false, reason: "Not recording" }) }],
-            };
-          }
-
-          const role = input.role as "user" | "assistant" | "system";
-          const content = input.content as string;
-          const tools = input.tools as string | undefined;
-
-          addMessage(db, serverState.currentSession.id, role, content, tools, true);
-
+        } catch (err) {
           return {
-            content: [{ type: "text", text: JSON.stringify({ success: true }) }],
+            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
           };
         }
-
-        default:
-          return {
-            content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${toolName}` }) }],
-          };
       }
-    },
+
+      case "record_message": {
+        if (!serverState.isRecording || !serverState.currentSession) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: false, reason: "Not recording" }) }],
+          };
+        }
+
+        const roleInput = input.role as string;
+        if (!["user", "assistant", "system"].includes(roleInput)) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: "Invalid role" }) }],
+          };
+        }
+        const role = roleInput as "user" | "assistant" | "system";
+        const content = input.content as string;
+        const tools = input.tools as string | undefined;
+
+        try {
+          addMessage(db, serverState.currentSession.id, role, content, tools, true);
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
+          };
+        }
+
+        return {
+          content: [{ type: "text", text: JSON.stringify({ success: true }) }],
+        };
+      }
+
+      default:
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${toolName}` }) }],
+        };
+    }
   };
 
-  return [listToolsHandler, callToolHandler];
+  return { listToolsHandler, callToolHandler };
 }
