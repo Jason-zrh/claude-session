@@ -21,7 +21,6 @@
 | 📁 **Project-based storage** | Save conversations organized by project |
 | 🔄 **Auto context loading** | Resume projects with full conversation history |
 | 🌐 **Cross-platform** | Works on Windows and macOS |
-| 🔌 **MCP protocol** | Native integration with Claude Code |
 | 💾 **Flexible save modes** | Auto-save or manual save - you choose |
 | 🔢 **Sequential IDs** | Project IDs reset after all projects are deleted |
 
@@ -31,7 +30,6 @@
 | 🔄 **自动加载上下文** | 恢复项目时加载完整对话历史 |
 | 🌐 **跨平台** | Windows 和 macOS 都能用 |
 | 🔌 **MCP 协议** | 与 Claude Code 原生集成 |
-| 💾 **灵活的保存模式** | 自动保存或手动保存，由你选择 |
 | 🔢 **顺序 ID** | 删除所有项目后 ID 会重置 |
 
 ---
