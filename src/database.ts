@@ -92,6 +92,18 @@ export function getProjectByName(db: Database.Database, name: string): Project |
   return db.prepare("SELECT * FROM projects WHERE name = ?").get(name) as Project | undefined;
 }
 
+export function deleteProject(db: Database.Database, name: string): boolean {
+  const project = getProjectByName(db, name);
+  if (!project) {
+    return false;
+  }
+  // Delete messages, sessions, and project (cascading due to foreign keys)
+  db.prepare("DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)").run(project.id);
+  db.prepare("DELETE FROM sessions WHERE project_id = ?").run(project.id);
+  db.prepare("DELETE FROM projects WHERE id = ?").run(project.id);
+  return true;
+}
+
 // Session operations
 export function createSession(db: Database.Database, projectId: number, sessionUuid: string): Session {
   const now = Date.now();

@@ -101,6 +101,7 @@ Put it in iCloud/Dropbox to sync across machines!
 | `/project <name>` | Start or continue a project | 启动或继续项目 |
 | `/projects` | List all projects | 列出所有项目 |
 | `/search <query>` | Search project messages | 搜索项目消息 |
+| `/delete <name>` | Delete a project and all data | 删除项目及所有数据 |
 | `/end` | End project, stop recording | 结束项目，停止保存 |
 
 ---

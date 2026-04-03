@@ -4,6 +4,7 @@ import {
   getOrCreateProject,
   listProjects,
   getProjectByName,
+  deleteProject,
   createSession,
   endSession,
   getActiveSession,
@@ -71,6 +72,17 @@ export function createTools(db: Database.Database) {
           name: "end_project",
           description: "End the current project and stop recording",
           inputSchema: { type: "object", properties: {} },
+        },
+        {
+          name: "delete_project",
+          description: "Delete a project and all its data (requires project name confirmation)",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Project name to delete" },
+            },
+            required: ["name"],
+          },
         },
         {
           name: "record_message",
@@ -235,6 +247,37 @@ export function createTools(db: Database.Database) {
               },
             ],
           };
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
+          };
+        }
+      }
+
+      case "delete_project": {
+        const name = (input.name as string)?.trim();
+        if (!name) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: "Project name is required" }) }],
+          };
+        }
+        // Prevent deleting currently active project
+        if (serverState.currentProject?.name === name) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: "Cannot delete active project. Use /end first." }) }],
+          };
+        }
+        try {
+          const deleted = deleteProject(db, name);
+          if (deleted) {
+            return {
+              content: [{ type: "text", text: JSON.stringify({ success: true, message: `Project "${name}" deleted` }) }],
+            };
+          } else {
+            return {
+              content: [{ type: "text", text: JSON.stringify({ error: `Project "${name}" not found` }) }],
+            };
+          }
         } catch (err) {
           return {
             content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
