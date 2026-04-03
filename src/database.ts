@@ -67,6 +67,8 @@ export function initializeDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_sessions_project_id ON sessions(project_id);
   `);
 
+  db.pragma("foreign_keys = ON");
+
   return db;
 }
 
@@ -128,11 +130,15 @@ export function getProjectMessages(db: Database.Database, projectId: number): Me
   `).all(projectId) as Message[];
 }
 
+function escapeLikePattern(str: string): string {
+  return str.replace(/[%_\\]/g, '\\$&');
+}
+
 export function searchProjectMessages(db: Database.Database, projectId: number, query: string): Message[] {
   return db.prepare(`
     SELECT m.* FROM messages m
     JOIN sessions s ON m.session_id = s.id
     WHERE s.project_id = ? AND m.content LIKE ?
     ORDER BY m.created_at ASC
-  `).all(projectId, `%${query}%`) as Message[];
+  `).all(projectId, `%${escapeLikePattern(query)}%`) as Message[];
 }

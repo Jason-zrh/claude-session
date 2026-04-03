@@ -1,4 +1,4 @@
-import { initializeDatabase, getOrCreateProject, listProjects, createSession, addMessage, getProjectMessages, endSession, getActiveSession, getDatabasePath } from "../src/database";
+import { initializeDatabase, getOrCreateProject, listProjects, createSession, addMessage, getProjectMessages, endSession, getActiveSession, getDatabasePath, getProjectByName, searchProjectMessages } from "../src/database";
 import Database from "better-sqlite3";
 import path from "path";
 import os from "os";
@@ -101,5 +101,27 @@ describe("Database operations", () => {
 
     const active = getActiveSession(db, project.id);
     expect(active?.id).toBe(session.id);
+  });
+
+  test("getProjectByName returns existing project", () => {
+    const project = getOrCreateProject(db, "test-project");
+    const found = getProjectByName(db, "test-project");
+    expect(found?.id).toBe(project.id);
+  });
+
+  test("getProjectByName returns undefined for non-existent", () => {
+    const found = getProjectByName(db, "non-existent");
+    expect(found).toBeUndefined();
+  });
+
+  test("searchProjectMessages finds matching messages", () => {
+    const project = getOrCreateProject(db, "test-project");
+    const session = createSession(db, project.id, "uuid-123");
+    addMessage(db, session.id, "user", "Hello world");
+    addMessage(db, session.id, "assistant", "Hi there");
+
+    const results = searchProjectMessages(db, project.id, "Hello");
+    expect(results).toHaveLength(1);
+    expect(results[0].content).toBe("Hello world");
   });
 });
