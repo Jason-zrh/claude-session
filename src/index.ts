@@ -32,4 +32,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
 );
 
 const transport = new StdioServerTransport();
-server.connect(transport).catch(console.error);
+server.connect(transport).catch((err) => {
+  console.error("Failed to connect:", err);
+  process.exit(1);
+});
