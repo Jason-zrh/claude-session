@@ -1,107 +1,148 @@
 # Claude Session
 
-> Persist Claude Code conversations to SQLite, organized by projects.
+<div align="center">
+
+![Claude Session](https://img.shields.io/badge/Claude-Code-7C3AED?style=for-the-badge&logo=anthropic)
+![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs)
+![SQLite](https://img.shields.io/badge/SQLite-Persisted-brightgreen?style=for-the-badge&logo=sqlite)
+![MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+
+**Persist Claude Code conversations to SQLite, organized by projects.**
 
 [English](#english) | [中文](#中文)
 
+</div>
+
 ---
 
-## English
+## Features | 功能特点
 
-### Features
+| Feature | Description |
+|---------|-------------|
+| 📁 **Project-based storage** | Save conversations organized by project |
+| 🔄 **Auto context loading** | Resume projects with full conversation history |
+| 🌐 **Cross-platform** | Works on Windows and macOS |
+| 🔌 **MCP protocol** | Native integration with Claude Code |
 
-- **Project-based storage** - Save conversations organized by project
-- **Auto context loading** - Resume projects with full conversation history
-- **Cross-platform** - Works on Windows and macOS via Node.js
-- **MCP protocol** - Native integration with Claude Code via Model Context Protocol
+| 功能 | 说明 |
+|------|------|
+| 📁 **按项目存储** | 按项目组织保存对话 |
+| 🔄 **自动加载上下文** | 恢复项目时加载完整对话历史 |
+| 🌐 **跨平台** | Windows 和 macOS 都能用 |
+| 🔌 **MCP 协议** | 与 Claude Code 原生集成 |
 
-### Installation
+---
+
+## Quick Start | 快速开始
+
+### Installation | 安装
 
 ```bash
 npm install -g claude-session
 ```
 
-### Setup
+### Setup | 初始化
 
 ```bash
 claude-session init
 ```
 
-This creates `~/.claude/claude_desktop_config.json` so Claude Code can discover the MCP server.
-
-### Usage
-
-In Claude Code CLI:
-
-```
-/project my-webapp    # Start/continue a project + load history + begin saving
-/projects             # List all projects
-/search auth setup   # Search within current project
-/end                 # End project, stop saving
-```
-
-### How it works
-
-1. Run `/project <name>` to start saving conversations to that project
-2. All messages (yours and Claude's) are stored in SQLite
-3. Run `/end` when done - recording stops but data is preserved
-4. Next time you run `/project <name>`, all previous messages are loaded into context
-
-### Database Location
-
-Default: `~/.claude-session.db`
-
-### License
-
-MIT
+> Restart Claude Code to load the MCP server.
 
 ---
 
-## 中文
-
-### 功能特点
-
-- **按项目存储** - 按项目组织保存对话
-- **自动加载上下文** - 恢复项目时加载完整对话历史
-- **跨平台** - 通过 Node.js 在 Windows 和 macOS 上运行
-- **MCP 协议** - 通过 Model Context Protocol 与 Claude Code 原生集成
-
-### 安装
+## Usage | 使用方式
 
 ```bash
-npm install -g claude-session
+# Start/continue a project
+/project my-webapp
+
+# List all projects
+/projects
+
+# Search within project
+/search auth setup
+
+# End project, stop saving
+/end
 ```
 
-### 初始化
+### How it works | 工作原理
+
+```
+┌─────────────────────────────────────────────────────┐
+│  /project <name>                                    │
+│    ↓                                                │
+│  Creates/loads project  +  Loads history  +  Starts saving
+│    ↓                                                │
+│  You chat with Claude Code                          │
+│    ↓                                                │
+│  /end                                               │
+│    ↓                                                │
+│  Recording stopped, data preserved                   │
+└─────────────────────────────────────────────────────┘
+```
+
+### Database | 数据库
+
+| Location | 位置 |
+|----------|------|
+| Default | `~/.claude-session.db` |
+
+Put it in iCloud/Dropbox to sync across machines!
+
+---
+
+## Commands | 命令
+
+| Command | Description | 说明 |
+|---------|-------------|------|
+| `claude-session init` | Initialize MCP config | 初始化 MCP 配置 |
+| `/project <name>` | Start or continue a project | 启动或继续项目 |
+| `/projects` | List all projects | 列出所有项目 |
+| `/search <query>` | Search project messages | 搜索项目消息 |
+| `/end` | End project, stop recording | 结束项目，停止保存 |
+
+---
+
+## Example | 示例
 
 ```bash
-claude-session init
+# Start a new project
+/project my-webapp
+# → "Project created. 0 previous messages."
+
+# Chat with Claude
+# → "How do I set up authentication?"
+
+# End session
+/end
+# → "Project ended, recording stopped."
+
+# Continue later
+/project my-webapp
+# → "Project loaded. 2 previous messages restored."
 ```
 
-这会创建 `~/.claude/claude_desktop_config.json`，让 Claude Code 能够发现 MCP 服务器。
+---
 
-### 使用方式
+## Tech Stack | 技术栈
 
-在 Claude Code CLI 中：
+- **Runtime**: Node.js 18+
+- **Protocol**: Model Context Protocol (MCP)
+- **Database**: SQLite via better-sqlite3
+- **Language**: TypeScript
 
-```
-/project my-webapp    # 启动/继续项目 + 加载历史 + 开始保存
-/projects             # 列出所有项目
-/search auth setup   # 在当前项目内搜索
-/end                 # 结束项目，停止保存
-```
+---
 
-### 工作原理
+## License | 许可证
 
-1. 运行 `/project <name>` 开始保存对话到该项目
-2. 所有消息（你和 Claude 的）都存储在 SQLite 中
-3. 运行 `/end` 结束时——记录停止但数据保留
-4. 下次运行 `/project <name>` 时，所有之前的消息都会被加载到上下文中
+MIT © 2026
 
-### 数据库位置
+---
 
-默认：`~/.claude-session.db`
+<div align="center">
 
-### 许可证
+**Star ⭐ if this helped you!**
 
-MIT
+</div>
