@@ -31,13 +31,18 @@ if (args[0] === "init") {
     },
   };
 
-  fs.mkdirSync(configDir, { recursive: true });
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  console.log(`MCP config written to ${configPath}`);
-  console.log(`Database path: ${dbPath}`);
-  console.log("");
-  console.log("Restart Claude Code to use the MCP server.");
-  process.exit(0);
+  try {
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    console.log(`MCP config written to ${configPath}`);
+    console.log(`Database path: ${dbPath}`);
+    console.log("");
+    console.log("Restart Claude Code to use the MCP server.");
+    process.exit(0);
+  } catch (err) {
+    console.error("Failed to write config:", err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
 }
 
 // Normal server mode
