@@ -173,6 +173,16 @@ Claude: 已切换到「电商后端」项目。12 条历史消息已恢复。
 
 ---
 
+## Changelog | 更新日志
+
+### v1.1.0 (2026-04-04)
+- **Bug Fix**: Server state persistence after restart
+  - 服务器重启后自动恢复上一个活动会话
+  - `use_project` 会检查并恢复现有会话而非创建新的
+  - `current_project` 在服务器重启后仍能正确显示状态
+
+---
+
 ## License | 许可证
 
 MIT © 2026

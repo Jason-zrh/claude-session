@@ -15,6 +15,33 @@ import {
   type Session,
 } from "./database.js";
 
+export function restoreServerState(db: Database.Database): Partial<ServerState> {
+  // 查找最后一个活动会话
+  const lastSession = db.prepare(`
+    SELECT s.*, p.name as project_name, p.created_at as project_created_at, p.updated_at as project_updated_at
+    FROM sessions s
+    JOIN projects p ON s.project_id = p.id
+    WHERE s.ended_at IS NULL
+    ORDER BY s.started_at DESC
+    LIMIT 1
+  `).get() as (Session & { project_name: string; project_created_at: number; project_updated_at: number }) | undefined;
+
+  if (lastSession) {
+    const project: Project = {
+      id: lastSession.project_id,
+      name: lastSession.project_name,
+      created_at: lastSession.project_created_at,
+      updated_at: lastSession.project_updated_at,
+    };
+    return {
+      currentProject: project,
+      currentSession: lastSession,
+      isRecording: true,
+    };
+  }
+  return {};
+}
+
 interface ToolCallParams {
   name: string;
   arguments?: Record<string, unknown>;
@@ -138,6 +165,42 @@ export function createTools(db: Database.Database) {
 
         try {
           const project = getOrCreateProject(db, name);
+
+          // 检查是否已有该项目的活动会话
+          const existingSession = getActiveSession(db, project.id);
+          if (existingSession) {
+            // 恢复现有会话
+            serverState.currentProject = project;
+            serverState.currentSession = existingSession;
+            serverState.isRecording = true;
+            serverState.saveMode = saveMode;
+            serverState.pendingMessages = [];
+
+            const messages = getProjectMessages(db, project.id);
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    success: true,
+                    project: { name: project.name, id: project.id },
+                    session_id: existingSession.id,
+                    is_new_project: false,
+                    previous_messages_count: messages.length,
+                    save_mode: saveMode,
+                    messages: messages.map((m) => ({
+                      role: m.role,
+                      content: m.content,
+                      created_at: m.created_at,
+                    })),
+                  }),
+                },
+              ],
+            };
+          }
+
+          // 没有现有会话，创建新的
           const sessionUuid = crypto.randomUUID();
           const session = createSession(db, project.id, sessionUuid);
 
@@ -392,5 +455,5 @@ export function createTools(db: Database.Database) {
     }
   };
 
-  return { listToolsHandler, callToolHandler };
+  return { listToolsHandler, callToolHandler, getServerState: () => serverState };
 }
