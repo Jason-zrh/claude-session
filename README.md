@@ -1,196 +1,174 @@
 # Claude Session
 
-<div align="center">
-
-![Claude Session](https://img.shields.io/badge/Claude-Code-7C3AED?style=for-the-badge&logo=anthropic)
-![SQLite](https://img.shields.io/badge/SQLite-Persisted-brightgreen?style=for-the-badge&logo=sqlite)
-![MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
-
-**Persist Claude Code conversations to SQLite, organized by projects.**
-
-[English](#english) | [中文](#中文)
-
-</div>
+将 Claude Code 对话持久化到 SQLite，按项目组织。
 
 ---
 
-## Features | 功能特点
-
-| Feature | Description |
-|---------|-------------|
-| 📁 **Project-based storage** | Save conversations organized by project |
-| 🔄 **Auto context loading** | Resume projects with full conversation history |
-| 🌐 **Cross-platform** | Works on Windows and macOS |
-| 💾 **Flexible save modes** | Auto-save or manual save - you choose |
-| 🔢 **Sequential IDs** | Project IDs reset after all projects are deleted |
-
-| 功能 | 说明 |
-|------|------|
-| 📁 **按项目存储** | 按项目组织保存对话 |
-| 🔄 **自动加载上下文** | 恢复项目时加载完整对话历史 |
-| 🌐 **跨平台** | Windows 和 macOS 都能用 |
-| 🔌 **MCP 协议** | 与 Claude Code 原生集成 |
-| 🔢 **顺序 ID** | 删除所有项目后 ID 会重置 |
-
----
-
-## Quick Start | 快速开始
-
-### Installation | 安装
+## 安装
 
 ```bash
-git clone 
-cd claude-session
 npm install
 npm run build
-```
-
-### Setup | 初始化
-
-```bash
 node dist/index.js init
 ```
 
-> Restart Claude Code to load the MCP server.
+重启 Claude Code 使 MCP server 生效。
 
 ---
 
-### Commands | 使用方式(用自然语言与cc对话，会自动匹配指令)
+## 工作原理
 
-- 查看项目列表: 查看项目列表
-- 创建项目: 创建 / 进入 "xxx" 项目
-- 保存对话消息(在项目中的时候): 保存当前对话
-- 结束项目: 结束当前项目
-- 删除项目: 删除 "xxx" 项目
+这是一个 MCP (Model Context Protocol) Server。Claude Code 通过 MCP 协议连接后，对话会被自动记录到 SQLite 数据库。
 
-整个使用过程不需要用指令，可以识别匹配中文或者英文的指令自动对项目进行管理
+用户通过自然语言命令触发 MCP 工具调用来管理项目。
 
 ---
 
-### How it works | 工作原理
+## 核心操作
+
+### 1. 创建/进入项目
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  /project <name>                                    │
-│    ↓                                                │
-│  Creates/loads project  +  Loads history            │
-│    ↓                                                │
-│  You choose: auto or manual save mode               │
-│    ↓                                                │
-│  You chat with Claude Code                          │
-│    ↓                                                │
-│  [Auto] Every message saved automatically           │
-│  [Manual] Messages buffered, use /save to flush     │
-│    ↓                                                │
-│  /end                                               │
-│    ↓                                                │
-│  Recording stopped, data preserved                  │
-└─────────────────────────────────────────────────────┘
+创建"xxx"项目
+```
+或
+```
+进入"xxx"项目
 ```
 
-### Database | 数据库
+MCP 工具 `use_project` 会被调用。如果项目已存在，会恢复之前的会话；如果不存在，会创建新项目。
 
-| Location | 位置 |
-|----------|------|
-| Default | `~/.claude-session.db` |
+支持 `save_mode` 参数：
+- `auto`（默认）：每条消息即时保存
+- `manual`：消息暂存，定期调用 `save_message` 批量保存
 
-#### Syncing across machines | 跨设备同步
+### 2. 查看项目列表
 
-The database file `~/.claude-session.db` can be synced via iCloud, Dropbox, or any cloud storage to share conversation history across multiple machines.
+```
+查看项目列表
+```
+
+MCP 工具 `list_projects` 会被调用。
+
+### 3. 结束项目（暂停）
+
+```
+结束当前项目
+```
+
+MCP 工具 `end_project` 会被调用。项目会暂停但数据保留在数据库中，下次进入可恢复。
+
+### 4. 删除项目
+
+```
+删除"xxx"项目
+```
+
+MCP 工具 `delete_project` 会被调用。
+
+### 5. 搜索项目消息
+
+```
+搜索"xxx"在当前项目中
+```
+
+MCP 工具 `search_project` 会被调用。
+
+### 6. 保存项目总结
+
+```
+保存项目
+```
+或
+```
+保存对话
+```
+
+MCP 工具 `project_save` 会被调用，保存一个项目总结消息。
 
 ---
 
-## Example | 示例
+## 自动记录
 
-### 查看项目列表
+每轮对话结束后，Claude Code 会自动调用 `auto_record` 工具，将用户消息和助手回复同时保存到数据库。
+
+---
+
+## 恢复项目
+
+下次打开 Claude Code 时，说：
+
 ```
-用户: 查看项目列表
-Claude: [项目列表]
-
-| 项目名称 | 创建时间 | 最后活动时间 |
-|---------|---------|------------|
-| my-webapp | 2026-03-31 | 2026-04-01 |
-| api-design | 2026-04-02 | 2026-04-02 |
-```
-
-### 创建/进入项目
-```
-用户: 创建 "my-webapp" 项目
-Claude: 已切换到 my-webapp 项目。0 条历史消息。
-
-用户: 进入 "api-design" 项目
-Claude: 已切换到 api-design 项目。5 条历史消息已恢复。
+进入"xxx"项目
 ```
 
-### 保存对话消息
-```
-用户: 保存当前对话
-Claude: 对话已保存到数据库。
-```
-> 自动保存模式下，每条消息会自动保存，无需手动调用。
+Claude 会显示该项目的历史消息数量（`previous_messages_count`），并加载所有历史消息。
 
-### 结束项目
+---
+
+## 数据库位置
+
 ```
-用户: 结束当前项目
-Claude: 项目已结束，对话记录已保存。
+~/.claude-session.db
 ```
 
-### 删除项目
-```
-用户: 删除 "old-project" 项目
-Claude: 项目 old-project 已删除，所有相关数据已清除。
-```
+可以同步到云端（iCloud/Dropbox）实现跨设备共享。
 
-### 完整使用流程
-```
-用户: 创建一个新项目叫电商后端
-Claude: 已创建并切换到「电商后端」项目。
+---
 
-用户: 开始讨论数据库设计
-[对话内容]
+## MCP 工具列表
 
-用户: 查看项目列表
-Claude: [显示电商后端项目]
+| 工具 | 触发命令 | 用途 |
+|------|----------|------|
+| `use_project` | 创建/进入"xxx"项目 | 创建或切换项目 |
+| `list_projects` | 查看项目列表 | 列出所有项目 |
+| `current_project` | - | 显示当前项目状态 |
+| `search_project` | 搜索"xxx" | 搜索项目消息 |
+| `end_project` | 结束当前项目 | 暂停项目 |
+| `delete_project` | 删除"xxx"项目 | 删除项目及所有数据 |
+| `record_message` | - | 记录单条消息 |
+| `auto_record` | - | 自动保存一轮对话 |
+| `project_save` | 保存项目/保存对话 | 保存项目总结 |
+| `save_message` | - | 批量保存暂存消息（manual模式） |
 
-用户: 结束当前项目
-Claude: 项目已结束。
+---
 
-[第二天]
+## 数据库结构
 
-用户: 继续电商后端项目
-Claude: 已切换到「电商后端」项目。12 条历史消息已恢复。
-[可以继续之前的讨论]
+| 表 | 字段 |
+|---|------|
+| projects | id, name, created_at, updated_at |
+| sessions | id, project_id, session_uuid, started_at, ended_at |
+| messages | id, session_id, role, content, tools, collapsed, created_at |
+
+查看数据：
+
+```bash
+sqlite3 ~/.claude-session.db "SELECT * FROM messages JOIN sessions ON messages.session_id = sessions.id WHERE sessions.project_id = 1;"
 ```
 
 ---
 
-## Tech Stack | 技术栈
+## 故障排除
 
-- **Runtime**: Node.js 18+
-- **Protocol**: Model Context Protocol (MCP)
-- **Database**: SQLite via better-sqlite3
-- **Language**: TypeScript
+**Q: 说"保存项目"但没有反应？**
+A: 检查是否在项目中，先说"查看项目列表"确认。
 
----
+**Q: 消息没有保存？**
+A: 确保项目处于激活状态（`current_project` 显示 `is_recording: true`）
 
-## Changelog | 更新日志
+**Q: 看不到历史消息？**
+A: 进入项目时会显示 `previous_messages_count`，历史消息会自动加载
 
-### v1.1.0 (2026-04-04)
-- **Bug Fix**: Server state persistence after restart
-  - 服务器重启后自动恢复上一个活动会话
-  - `use_project` 会检查并恢复现有会话而非创建新的
-  - `current_project` 在服务器重启后仍能正确显示状态
+--- 
 
----
+## 使用示例
+- 创建"XXX"项目 
+- 与cc对话.... 
+- 保存当前对话(cc自动总结上文全部对话并进行保存，如果你想自己总结也可以输入自己总结的内容)
+- 结束对话(离开当前项目)
 
-## License | 许可证
+关闭cc后重新进入项目或者直接重新进入对话
+切换到"XXX"项目 / 对话
 
-MIT © 2026
-
----
-
-<div align="center">
-
-**Star ⭐ if this helped you!**
-
-</div>
+在每次大批对话后执行一次保存当前对话，防止上下文窗口过大导致部分消息丢失！！！

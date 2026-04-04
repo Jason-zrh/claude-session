@@ -6,7 +6,6 @@ import {
   getProjectByName,
   deleteProject,
   createSession,
-  endSession,
   getActiveSession,
   addMessage,
   getProjectMessages,
@@ -141,6 +140,29 @@ export function createTools(db: Database.Database) {
           },
         },
         {
+          name: "auto_record",
+          description: "Auto-save a conversation turn (both user message and assistant response). Call this after each exchange to persist the full conversation. Returns the number of messages saved.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              user_message: { type: "string", description: "The user's message" },
+              assistant_message: { type: "string", description: "The assistant's response" },
+            },
+            required: ["user_message", "assistant_message"],
+          },
+        },
+        {
+          name: "project_save",
+          description: "Save current project. MUST be called when user says: '保存项目', '保存对话', '保存当前项目', 'save project', 'save conversation', or similar phrases. The summary parameter should contain the user's message content or an auto-generated summary of the conversation.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              summary: { type: "string", description: "The content to save - can be the user's request or an auto-generated summary" },
+            },
+            required: ["summary"],
+          },
+        },
+        {
           name: "save_message",
           description: "Flush all pending messages to the database (used in manual save mode)",
           inputSchema: { type: "object", properties: {} },
@@ -194,6 +216,7 @@ export function createTools(db: Database.Database) {
                       content: m.content,
                       created_at: m.created_at,
                     })),
+                    save_instruction: "要保存对话，请对 Claude 说：保存当前对话",
                   }),
                 },
               ],
@@ -228,6 +251,7 @@ export function createTools(db: Database.Database) {
                     content: m.content,
                     created_at: m.created_at,
                   })),
+                  save_instruction: "要保存对话，请对 Claude 说：保存当前对话",
                 }),
               },
             ],
@@ -322,28 +346,20 @@ export function createTools(db: Database.Database) {
       }
 
       case "end_project": {
-        try {
-          if (serverState.currentSession) {
-            endSession(db, serverState.currentSession.id);
-          }
-          serverState.currentProject = null;
-          serverState.currentSession = null;
-          serverState.isRecording = false;
-          serverState.pendingMessages = [];
+        // 暂停项目：只断开连接，会话保留在DB中（不设置ended_at），下次进入可恢复
+        serverState.currentProject = null;
+        serverState.currentSession = null;
+        serverState.isRecording = false;
+        serverState.pendingMessages = [];
 
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({ success: true, message: "Project ended, recording stopped" }),
-              },
-            ],
-          };
-        } catch (err) {
-          return {
-            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
-          };
-        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success: true, message: "Project paused, session saved" }),
+            },
+          ],
+        };
       }
 
       case "delete_project": {
@@ -440,6 +456,59 @@ export function createTools(db: Database.Database) {
           serverState.pendingMessages = [];
           return {
             content: [{ type: "text", text: JSON.stringify({ success: true, saved: toSave.length }) }],
+          };
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
+          };
+        }
+      }
+
+      case "auto_record": {
+        if (!serverState.isRecording || !serverState.currentSession) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: false, reason: "Not recording" }) }],
+          };
+        }
+
+        const userMessage = input.user_message as string;
+        const assistantMessage = input.assistant_message as string;
+        const now = Date.now();
+
+        try {
+          // Save user message
+          addMessage(db, serverState.currentSession.id, "user", userMessage, undefined, true);
+          // Save assistant message
+          addMessage(db, serverState.currentSession.id, "assistant", assistantMessage, undefined, true);
+
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: true, saved: 2 }) }],
+          };
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: `Database error: ${err}` }) }],
+          };
+        }
+      }
+
+      case "project_save": {
+        if (!serverState.isRecording || !serverState.currentSession) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: false, reason: "Not in a project" }) }],
+          };
+        }
+
+        const summary = input.summary as string;
+        if (!summary || summary.trim().length === 0) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: "Summary content is empty" }) }],
+          };
+        }
+
+        try {
+          addMessage(db, serverState.currentSession.id, "system", `[项目总结] ${summary}`, undefined, true);
+          return {
+            content: [{ type: "text", text: JSON.stringify({ success: true, message: "Summary saved to project" }) }],
           };
         } catch (err) {
           return {

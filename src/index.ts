@@ -7,7 +7,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { initializeDatabase } from "./database.js";
-import { createTools, restoreServerState } from "./tools.js";
+import { createTools } from "./tools.js";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -48,16 +48,6 @@ if (args[0] === "init") {
 // Normal server mode
 const db = initializeDatabase();
 const { listToolsHandler, callToolHandler, getServerState } = createTools(db);
-
-// 恢复上一个活动会话的状态（如果存在）
-const restoredState = restoreServerState(db);
-if (restoredState.currentProject && restoredState.currentSession) {
-  const state = getServerState();
-  state.currentProject = restoredState.currentProject;
-  state.currentSession = restoredState.currentSession;
-  state.isRecording = restoredState.isRecording ?? true;
-  console.error(`[claude-session] Restored session: project="${state.currentProject.name}", session_id=${state.currentSession.id}`);
-}
 
 const server = new Server(
   {
